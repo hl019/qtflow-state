@@ -1,0 +1,183 @@
+name: 订单邮件工作流
+version: 0.1.0
+source: quanttide-handbook-of-business-entity/qtdata/connect/email.md
+principle: 每一步关键节点均以邮件书面确认
+
+stages:
+  S1: 订单承接
+  S2: 方案报价
+  S3: 合同启动
+  S4: 执行监控
+  S5: 验收交付
+  S6: 尾款发票
+  S7: 收尾留存
+
+nodes:
+  - id: E1
+    name: 承接确认
+    stage: S1
+    trigger: 销售成交、客户确认合作意向
+    actor: 商务经理
+    subject: "[项目名称] - 合作承接确认与信息收集"
+    expected_response: 客户提供资料
+    timeout: 48h 未回复 → 微信/飞书跟进
+    next: [E2]
+
+  - id: E2
+    name: 策划书确认
+    stage: S2
+    trigger: 策划书撰写完成
+    actor: 商务经理 / PM
+    subject: "[项目名称] - 项目策划书（请确认）"
+    expected_response: 客户确认或反馈修改意见
+    rule: 反复修改需控制轮次，三轮未收敛 → 电话沟通
+    next: [E3]
+
+  - id: E3
+    name: 商务报价单
+    stage: S2
+    trigger: 技术评估工时完成
+    actor: 商务经理
+    subject: "[项目名称] - 商务报价单"
+    expected_response: 客户接受 / 协商
+    next: [E3b, E4]
+
+  - id: E3b
+    name: 降价协商
+    stage: S2
+    branch: true
+    trigger: 客户嫌贵或要求降价
+    actor: 商务经理
+    subject: "[项目名称] - 关于报价的沟通"
+    next: [E3, 收尾]
+
+  - id: E4
+    name: 报价确认
+    stage: S2
+    trigger: 客户接受报价
+    actor: 商务经理
+    next: [E5]
+
+  - id: E5
+    name: 合同审阅
+    stage: S3
+    trigger: 合同起草完成
+    actor: 商务经理
+    subject: "[项目名称] - 商务合同（请审阅）"
+    expected_response: 回复"确认"
+    next: [E6]
+
+  - id: E6
+    name: 合同盖章 + 首款提醒
+    stage: S3
+    trigger: 双方确认合同
+    actor: 商务经理
+    expected_response: 客户付款回执
+    timeout: 7 天未到账 → 商务催收并记录
+    next: [E7]
+
+  - id: E7
+    name: 项目启动
+    stage: S3
+    trigger: 首款到账
+    actor: 商务经理 / PM
+    next: [E8]
+
+  - id: E8
+    name: 进度周报
+    stage: S4
+    trigger: 每周 / 每两周
+    actor: PM
+    subject: "[项目名称] - 进度周报（第X期）"
+    principle: 主动透明、暴露风险
+    next: [E8, E9]
+
+  - id: E9
+    name: 风险与问题同步
+    stage: S4
+    trigger: 出现卡点、风险或需客户决策
+    actor: PM
+    subject: "[项目名称] - 项目风险同步与方案确认"
+    next: [E8, E10]
+
+  - id: E10
+    name: 需求变更
+    stage: S4
+    branch: true
+    trigger: 客户提出需求变更
+    actor: 商务经理 / PM
+    subject: "[项目名称] - 需求变更方案与成本评估"
+    rule: 变更以书面确认为准，需补签变更协议
+    next: [E8]
+
+  - id: E11
+    name: 验收通知
+    stage: S5
+    trigger: 技术完成开发、内部验收通过
+    actor: PM
+    expected_response: X 个工作日内回复验收结论
+    rule: 超期未反馈视为验收通过
+    next: [E12]
+
+  - id: E12
+    name: 正式交付
+    stage: S5
+    existing_template: true
+    trigger: 客户验收通过
+    actor: PM / 商务经理
+    next: [E13]
+
+  - id: E13
+    name: 尾款支付通知
+    stage: S6
+    trigger: 客户确认交付物无误
+    actor: 商务经理
+    next: [E14, E16]
+
+  - id: E14
+    name: 开票资料收集
+    stage: S6
+    trigger: 客户需开发票
+    actor: 商务经理
+    next: [E15]
+
+  - id: E15
+    name: 发票送达
+    stage: S6
+    existing_template: true
+    trigger: 财务完成开票
+    actor: 商务经理（配合财务）
+    next: [E16]
+
+  - id: E16
+    name: 结项确认
+    stage: S6
+    trigger: 尾款到账
+    actor: 商务经理
+    next: [E17]
+
+  - id: E17
+    name: 售后支持与回访
+    stage: S7
+    trigger: 交付后 X 周（售后期内）
+    actor: 商务经理 / PM
+    next: [E18]
+
+  - id: E18
+    name: 转介绍与长期合作
+    stage: S7
+    trigger: 项目圆满结项、客户满意度确认后
+    actor: 商务经理
+    next: []
+
+roles:
+  商务经理: 承接、报价、合同、发票、尾款邮件（本工作流主导者）
+  PM: 进度汇报、风险同步、验收与交付邮件
+  销售: 成交前沟通；成交后向商务移交
+  财务: 开票、到账确认（配合商务）
+
+rules:
+  - 涉及范围、价格、工期、验收的节点，一律以邮件确认
+  - 关键邮件 48 小时未回复 → 微信/飞书提醒
+  - 付款类 7 天未到账 → 商务催收并记录
+  - 全部往来邮件按项目归档，作为审计与复盘依据
