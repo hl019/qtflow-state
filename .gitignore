@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---- qtflow-state 项目规则 ----
+# 运行产物：含真实项目数据，不进公开仓库
+project/data/*.json
+project/data/*.db
+
+# 本地测试资产（含标注基准与脱敏样本）
+test-samples/
