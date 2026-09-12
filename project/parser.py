@@ -73,6 +73,13 @@ RETRO_NODE_HINTS = [
     ("E1", ("承接确认", "更新对接人")),
 ]
 
+# 一条时间线同时覆盖两个节点的白名单。
+# 实测依据：复盘样本 #16"团队修订报价明细；客户接受当前价格"人工标注为
+# E3 + E4 双节点——修订报价单（E3）与报价被确认（E4）确实是两个动作。
+# 只用白名单配对而非全量多命中：避免宽泛提示词（如"交付包"）在无关行
+# 里误增节点，保持每行主判定优先。
+PAIR_NODES = {"E4": "E3"}
+
 
 def parse_email(text: str, source: str = "") -> Dict[str, Optional[str]]:
     """解析单封邮件，返回结构化状态记录。
@@ -132,13 +139,32 @@ def _extract_retro_field(text: str, field: str) -> Optional[str]:
     return m.group(1).strip() if m else None
 
 
-def _detect_retro_node(event: str) -> Optional[str]:
-    """在复盘的事件描述中匹配节点。按提示词表顺序匹配，先具体后宽泛。"""
+def _detect_retro_nodes(event: str) -> list:
+    """在复盘的事件描述中匹配节点，返回命中列表（主判定在前）。
+
+    主判定按提示词表顺序取第一个命中；随后应用白名单配对
+    （PAIR_NODES），补出同行覆盖的次节点。
+    """
+    hints_map = dict(RETRO_NODE_HINTS)
+    nodes = []
     for node_id, hints in RETRO_NODE_HINTS:
         for hint in hints:
             if hint in event:
-                return node_id
-    return None
+                nodes.append(node_id)
+                break
+        if nodes:
+            break
+    if nodes:
+        pair = PAIR_NODES.get(nodes[0])
+        if pair and any(h in event for h in hints_map[pair]):
+            nodes.append(pair)
+    return nodes
+
+
+def _detect_retro_node(event: str) -> Optional[str]:
+    """在复盘的事件描述中匹配节点。按提示词表顺序匹配，先具体后宽泛。"""
+    nodes = _detect_retro_nodes(event)
+    return nodes[0] if nodes else None
 
 
 def _detect_retro_actor(event: str) -> Optional[str]:
@@ -170,18 +196,21 @@ def parse_retrospective(text: str, source: str = "") -> list:
         if not m:
             continue
         year, month, day, event = m.groups()
-        records.append(
-            {
-                "project": project,
-                "node": _detect_retro_node(event),
-                "date": f"{year}-{int(month):02d}-{int(day):02d}",
-                "event": event.strip(),
-                "actor": _detect_retro_actor(event),
-                "evidence": line.strip(),
-                "source": source,
-                "parsed_at": datetime.now().isoformat(timespec="seconds"),
-            }
-        )
+        date_str = f"{year}-{int(month):02d}-{int(day):02d}"
+        event_clean = event.strip()
+        for node_id in _detect_retro_nodes(event_clean):
+            records.append(
+                {
+                    "project": project,
+                    "node": node_id,
+                    "date": date_str,
+                    "event": event_clean,
+                    "actor": _detect_retro_actor(event_clean),
+                    "evidence": line.strip(),
+                    "source": source,
+                    "parsed_at": datetime.now().isoformat(timespec="seconds"),
+                }
+            )
 
     return records
 
