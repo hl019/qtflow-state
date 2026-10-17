@@ -74,12 +74,14 @@ def load(conn, path):
     inserted = skipped = 0
     for r in rows:
         node = r.get("node") or ""
+        # event 用空串兜底：邮件模式（parsed_states.json）没有 event 字段，
+        # 若留成 NULL，SQLite 的 UNIQUE 约束对 NULL 不生效，重复导入会产生重复记录。
         try:
             conn.execute(
                 "INSERT INTO states (project, node, node_name, date, event,"
                 " actor, evidence, source, parsed_at) VALUES (?,?,?,?,?,?,?,?,?)",
                 (r.get("project") or "未命名项目", node, NODE_NAMES.get(node, ""),
-                 r.get("date"), r.get("event"), r.get("actor"),
+                 r.get("date"), r.get("event") or "", r.get("actor"),
                  r.get("evidence"), r.get("source"), r.get("parsed_at")),
             )
             inserted += 1
